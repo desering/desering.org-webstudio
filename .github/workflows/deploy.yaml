@@ -1,0 +1,63 @@
+name: deploy
+
+on:
+  push:
+    branches:
+      - main
+
+# Grant GITHUB_TOKEN the permissions required to make a Pages deployment
+permissions:
+  contents: read
+  pages: write      # to deploy to Pages
+  id-token: write   # to verify the deployment originates from an appropriate source
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Webstudio CLI
+        run: npm install -g webstudio@latest
+
+      - name: Configure Webstudio
+        run: webstudio link --link "https://p-ca368905-f7b1-4581-981b-acca68b08ecb.apps.webstudio.is/?authToken=${{ secrets.WEBSTUDIO_TOKEN }}"
+
+      - name: Sync Webstudio project
+        run: webstudio sync
+
+      - name: Build Webstudio project
+        run: webstudio build --template ssg
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Fix various issues with Webstudio
+        run: |
+          # Comment out redirects so that the static build can succeed
+          find . -type f -name "+data.ts" -exec sed -i'' -e 's|throw redirect(pageMeta.redirect, status);|//throw redirect(pageMeta.redirect, status);|g' {} \;
+
+          # Set base path ("vite build --base" does not work because vite is wrapped by vike which does not recognize --base)
+          sed -i'' "s/plugins/base: \"\/desering.org-webstudio\/\",\n  plugins/" vite.config.ts
+          cat vite.config.ts
+
+          # Fix asset base url (apparently the "base" parameter is not used in all places)
+          sed -i'' "s/\/assets\//\/desering.org-webstudio\/assets\//" app/constants.mjs
+          cat app/constants.mjs
+
+      - name: Build static site
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist/client
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
