@@ -1,0 +1,107 @@
+name: deploy
+
+on:
+  push:
+    branches:
+      - main
+
+# Grant GITHUB_TOKEN the permissions required to make a Pages deployment
+permissions:
+  contents: read
+  pages: write      # to deploy to Pages
+  id-token: write   # to verify the deployment originates from an appropriate source
+
+env:
+  BASE_PATH: '/desering.org-webstudio'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Webstudio CLI
+        run: npm install -g webstudio@latest
+
+      - name: Configure Webstudio
+        run: webstudio link --link "https://p-ca368905-f7b1-4581-981b-acca68b08ecb.apps.webstudio.is/?authToken=${{ secrets.WEBSTUDIO_TOKEN }}"
+
+      - name: Sync Webstudio project
+        run: webstudio sync
+
+      - name: Build Webstudio project
+        run: webstudio build --template ssg
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Comment out redirects so that the static build can succeed
+        # The webstudio docs mention that redirects are not supported:
+        # https://docs.webstudio.is/university/self-hosting#static-site
+        # It is noteworthy that the build fails if redirects are present,
+        # instead of simply ignoring or skipping them.
+        # A workaround would be to implement the redirects as "refresh" HTML
+        # meta tags. This behavior should be controllable during build time,
+        # for example with a flag on the `webstudio build` command or a config
+        # option in vite/vike.
+        run: |
+          find . -type f -name "+data.ts" -exec sed -i'' -e 's|throw redirect(pageMeta.redirect, status);|//throw redirect(pageMeta.redirect, status);|g' {} \;
+
+      - name: Set vite base path
+        # This affects only paths of CSS and JS assets.
+        # If `base` is defined, it must start with "/", and cannot be empty ("").
+        # `base` may or may not have a trailing "/", it works correctly either way.
+        # "vite build --base" does not work because vite is wrapped by vike which does not recognize the "--base" option.
+        # https://vike.dev/base-url
+        # https://github.com/webstudio-is/webstudio/blob/main/fixtures/ssg/vite.config.ts
+        run: |
+          sed -i'' 's|plugins|base: "${{ env.BASE_PATH }}",\n  plugins|' vite.config.ts
+          cat vite.config.ts
+
+      - name: Patch `constants.mjs` with new basePath and assetLoader function
+        # The change to the existing `imageLoader` ensures that images are prefixed correctly.
+        # The new `assetLoader` will be used below to fix asset links in "+Head.tsx".
+        # The `basePath` constant will be used below to fix navigation links in "+Page.tsx".
+        # The Webstudio SSG template only provides an `assetBaseUrl`, which is
+        # not used by the `imageLoader` and instead exported and used directly
+        # in various places, sometimes even together with the `imageLoader`.
+        # Example: https://github.com/webstudio-is/webstudio/blob/main/packages/cli/templates/ssg/app/route-templates/html/%2BHead.tsx#L70-L71
+        # A basePath constant is missing entirely.
+        # https://github.com/webstudio-is/webstudio/blob/main/fixtures/ssg/app/constants.mjs
+        run: |
+          sed -i'' 's|BASE_PATH_PLACEHOLDER|${{ env.BASE_PATH }}|' .patches/constants.mjs.patch
+          git apply .patches/constants.mjs.patch
+          cat app/constants.mjs
+
+      - name: Fix favicon path and asset preloading links in "+Head.tsx"
+        # This depends on the `assetLoader` in `app/constants.mjs`.
+        # This should be fixed by updating the template, together with the changes to constants.mjs:
+        # https://github.com/webstudio-is/webstudio/blob/main/packages/cli/templates/ssg/app/route-templates/html/%2BHead.tsx
+        run: |
+          # Manually fix import because git patch does not apply due to varying depth of page paths:
+          find pages -name "+Head.tsx" -exec sed -i'' -e 's/assetBaseUrl, imageLoader/assetLoader, imageLoader/' {} \;
+          # Fix the rest of the "+Head.tsx" files with a git patch:
+          find pages -name "+Head.tsx" -exec sh -c 'git apply --directory="$(dirname {})" .patches/+Head.tsx.patch' \;
+
+      - name: Prefix hardcoded internal navigation links with base path
+        # This depends on the `basePath` in `app/constants.mjs`.
+        # This should be fixed by extending the runtime with a Link component that handles basePaths the same way as assetBaseUrls:
+        # https://github.com/webstudio-is/webstudio/blob/main/packages/cli/templates/ssg/app/route-templates/html/%2BPage.tsx#L12
+        run: node scripts/fix-links.mjs
+
+      - name: Build static site
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist/client
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

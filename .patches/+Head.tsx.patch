@@ -1,0 +1,47 @@
+diff --git a/+Head.tsx b/+Head.tsx
+index 8a882ea..155ffe1 100644
+--- a/+Head.tsx
++++ b/+Head.tsx
+@@ -20,7 +20,7 @@ export const Head = ({ data }: { data: PageContext["data"] }) => {
+   let socialImageUrl = pageMeta.socialImageUrl;
+   if (pageMeta.socialImageAssetName) {
+     socialImageUrl = `${origin}${imageLoader({
+-      src: `${assetBaseUrl}/${pageMeta.socialImageAssetName}`,
++      src: `${pageMeta.socialImageAssetName}`,
+       // Do not transform social image (not enough information do we need to do this)
+       format: "raw",
+     })}`;
+@@ -67,22 +67,14 @@ export const Head = ({ data }: { data: PageContext["data"] }) => {
+       {favIconAsset && (
+         <link
+           rel="icon"
+-          href={imageLoader({
+-            src: `${assetBaseUrl}${favIconAsset}`,
+-            // width,height must be multiple of 48 https://developers.google.com/search/docs/appearance/favicon-in-search
+-            width: 144,
+-            height: 144,
+-            fit: "pad",
+-            quality: 100,
+-            format: "auto",
+-          })}
++          href={assetLoader(favIconAsset)}
+         />
+       )}
+       {pageFontAssets.map((asset) => (
+         <link
+           key={asset}
+           rel="preload"
+-          href={`${assetBaseUrl}${asset}`}
++          href={assetLoader(asset)}
+           as="font"
+           crossOrigin="anonymous"
+         />
+@@ -91,7 +83,7 @@ export const Head = ({ data }: { data: PageContext["data"] }) => {
+         <link
+           key={asset}
+           rel="preload"
+-          href={`${assetBaseUrl}${asset}`}
++          href={assetLoader(asset)}
+           as="image"
+         />
+       ))}
