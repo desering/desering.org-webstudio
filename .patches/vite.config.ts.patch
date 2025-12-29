@@ -1,0 +1,73 @@
+diff --git a/vite.config.ts b/vite.config.ts
+index 1ebb391..cd27905 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -2,8 +2,67 @@ import { defineConfig } from "vite";
+ import react from "@vitejs/plugin-react";
+ import vike from "vike/plugin";
+ 
++import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
++import { join } from 'node:path';
++
+ export default defineConfig({
+-  plugins: [react(), vike({ prerender: true })],
++  plugins: [react(), vike({ prerender: true }), {
++    name: "fix-nav-links-before-build",
++    apply: "build",
++    config(config, { command }) {
++      if (config.base === undefined) {
++        return;
++      }
++      console.log(command);
++
++      let totalReplacements = 0;
++
++      const contentPath = 'app/__generated__/';
++      const files = readdirSync(contentPath)
++        .filter((fn: string) => fn.endsWith(".tsx"))
++        .map((fn: string) => join(contentPath, fn));
++
++      files.forEach((filePath: string) => {
++        let content = readFileSync(filePath, 'utf8');
++        const originalContent = content;
++        let fileReplacements = 0;
++
++        content = content.replace(
++          /href={"(.+)"}/g,
++          (match: string, group1: string) => {
++            // Skip if it's already prefixed, is an external URL, anchor, or mailto
++            if (
++              group1.startsWith(config.base) ||
++              group1.includes('http://') ||
++              group1.includes('https://') ||
++              group1.startsWith('#') ||
++              group1.startsWith('mailto:')
++            ) {
++              return match;
++            }
++
++            // Don't double count if already replaced above
++            if (originalContent.includes(match) && !content.includes(match)) {
++              return match;
++            }
++
++            fileReplacements++;
++            return `href={"${config.base}${group1}"}`;
++          }
++        );
++
++        // Only write if content changed
++        if (content !== originalContent) {
++          writeFileSync(filePath, content, 'utf8');
++          totalReplacements += fileReplacements;
++          console.log(`  ✓ ${filePath.split('/').pop()}: ${fileReplacements} link(s) fixed`);
++        }
++      });
++
++      console.log(`\n✓ Fixed ${totalReplacements} internal link(s) across ${files.length} file(s)`);
++      console.log(`  Base path: ${config.base}`);
++    }
++  }],
+   resolve: {
+     conditions: ["browser", "development|production"],
+   },

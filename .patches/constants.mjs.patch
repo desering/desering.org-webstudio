@@ -1,28 +1,20 @@
 diff --git a/app/constants.mjs b/app/constants.mjs
-index d6a9c3c..f2a4a35 100644
+index d6a9c3c..155b775 100644
 --- a/app/constants.mjs
 +++ b/app/constants.mjs
-@@ -3,11 +3,22 @@
-  * and we use `node --eval` to extract the constants.
-  */
- 
-+export const basePath = "BASE_PATH_PLACEHOLDER";
-+
- export const assetBaseUrl = "/assets/";
- 
- /**
+@@ -9,5 +9,14 @@ export const assetBaseUrl = "/assets/";
   * @type {import("@webstudio-is/image").ImageLoader}
   */
  export const imageLoader = ({ src }) => {
 -  return src;
 +  // image paths already have the "/assets/" prefix, so we don't include the assetBaseUrl here.
-+  return basePath === "/"
++  return import.meta.env.BASE_URL === "/"
 +      ? src
-+      : basePath + src;
++      : import.meta.env.BASE_URL + src;
  };
 +
 +export const assetLoader = (src) => {
-+  return basePath === "/"
++  return import.meta.env.BASE_URL === "/"
 +      ? assetBaseUrl + src
-+      : basePath + assetBaseUrl + src;
++      : import.meta.env.BASE_URL + assetBaseUrl + src;
 +}

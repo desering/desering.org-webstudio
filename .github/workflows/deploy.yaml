@@ -50,8 +50,17 @@ jobs:
         run: |
           find . -type f -name "+data.ts" -exec sed -i'' -e 's|throw redirect(pageMeta.redirect, status);|//throw redirect(pageMeta.redirect, status);|g' {} \;
 
+      - name: Patch vite plugin to prefix internal navigation links in "+Page.tsx" with base path before build
+        # This depends on the vite base parameter.
+        # This should be fixed by extending the runtime with a Link component that handles basePaths the same way as assetBaseUrls:
+        # https://github.com/webstudio-is/webstudio/blob/main/packages/cli/templates/ssg/app/route-templates/html/%2BPage.tsx#L12
+        run: |
+          git apply .patches/vite.config.ts.patch
+
       - name: Set vite base path
-        # This affects only paths of CSS and JS assets.
+        # This directly affects paths of CSS and JS assets. The `imageLoader`
+        # and `assetLoader` functions below are also reading the `base`
+        # parameter from vite.
         # If `base` is defined, it must start with "/", and cannot be empty ("").
         # `base` may or may not have a trailing "/", it works correctly either way.
         # "vite build --base" does not work because vite is wrapped by vike which does not recognize the "--base" option.
@@ -61,10 +70,10 @@ jobs:
           sed -i'' 's|plugins|base: "${{ env.BASE_PATH }}",\n  plugins|' vite.config.ts
           cat vite.config.ts
 
-      - name: Patch `constants.mjs` with new basePath and assetLoader function
+      - name: Patch `constants.mjs` with new assetLoader function
         # The change to the existing `imageLoader` ensures that images are prefixed correctly.
         # The new `assetLoader` will be used below to fix asset links in "+Head.tsx".
-        # The `basePath` constant will be used below to fix navigation links in "+Page.tsx".
+        # Both functions use the base path set in vite config.
         # The Webstudio SSG template only provides an `assetBaseUrl`, which is
         # not used by the `imageLoader` and instead exported and used directly
         # in various places, sometimes even together with the `imageLoader`.
@@ -72,7 +81,6 @@ jobs:
         # A basePath constant is missing entirely.
         # https://github.com/webstudio-is/webstudio/blob/main/fixtures/ssg/app/constants.mjs
         run: |
-          sed -i'' 's|BASE_PATH_PLACEHOLDER|${{ env.BASE_PATH }}|' .patches/constants.mjs.patch
           git apply .patches/constants.mjs.patch
           cat app/constants.mjs
 
@@ -85,12 +93,6 @@ jobs:
           find pages -name "+Head.tsx" -exec sed -i'' -e 's/assetBaseUrl, imageLoader/assetLoader, imageLoader/' {} \;
           # Fix the rest of the "+Head.tsx" files with a git patch:
           find pages -name "+Head.tsx" -exec sh -c 'git apply --directory="$(dirname {})" .patches/+Head.tsx.patch' \;
-
-      - name: Prefix hardcoded internal navigation links with base path
-        # This depends on the `basePath` in `app/constants.mjs`.
-        # This should be fixed by extending the runtime with a Link component that handles basePaths the same way as assetBaseUrls:
-        # https://github.com/webstudio-is/webstudio/blob/main/packages/cli/templates/ssg/app/route-templates/html/%2BPage.tsx#L12
-        run: node scripts/fix-links.mjs
 
       - name: Build static site
         run: npm run build
