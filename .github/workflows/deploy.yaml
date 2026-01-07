@@ -50,7 +50,7 @@ jobs:
         # for example with a flag on the `webstudio build` command or a config
         # option in vite/vike.
         run: |
-          find . -type f -name "+data.ts" -exec sed -i'' -e 's|throw redirect(pageMeta.redirect, status);|//throw redirect(pageMeta.redirect, status);|g' {} \;
+          find pages -type f -name "+data.ts" -exec sed -i'' -e 's|throw redirect(pageMeta.redirect, status);|//throw redirect(pageMeta.redirect, status);|g' {} \;
 
       - name: Patch vite plugin to prefix internal navigation links in "+Page.tsx" with base path before build
         # This depends on the vite base parameter.
