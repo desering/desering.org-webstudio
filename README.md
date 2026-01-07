@@ -162,19 +162,18 @@ the [GitHub Actions Workflow](.github/workflows/deploy.yaml).
 
 In short, each of the above-mentioned areas is covered with a pre-build step:
 
-1. **Navigation links**: introducing a new `basePath` constant and a script that
-   adds the `basePath` prefix to links in both `Link` and `RichTextLink`
-   components (under the hood, `RichTextLink` is a `Link`)
-2. **Image URLs**: patching the `imageLoader` function to prefix image paths with
-   both the `basePath` constant and the `assetBaseUrl`, if given.
+1. **Navigation links**: introducing a new vite plugin that that adds the
+   vite `base` prefix to links in both `Link` and `RichTextLink` components.
+2. **Image URLs**: patching the `imageLoader` function to prefix image paths
+   with both the vite `base` parameter and the `assetBaseUrl`, if given.
 3. **Other assets**: introducing a new `assetLoader` function to prefix assets
-   references inside the `+Head.tsx` component.
+   references inside the `+Head.tsx` component with the vite `base` parameter.
 
 This is the first step towards more elegant or correct solutions, like:
 
 1. Implementing a better [`Link` component](https://github.com/webstudio-is/webstudio/blob/main/packages/sdk-components-react/src/link.tsx)
-   that supports the `base` parameter in `vite.config.ts`
+   that supports the `base` parameter in `vite.config.ts`, to get rid of the
+   vite plugin that prefixes navigation links with the base path.
 2. Not exporting the `assetBaseUrl` at all and instead making all file paths use
    either the existing `imageLoader`, or a new `assetLoader`, in case images and
-   other assets need different treatment. Ideally, both the `imageLoader` and
-   the new `assetLoader` would source the `basePath` from `vite.config.ts`.
+   other assets need different treatment.
