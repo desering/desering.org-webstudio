@@ -80,7 +80,6 @@ jobs:
         # not used by the `imageLoader` and instead exported and used directly
         # in various places, sometimes even together with the `imageLoader`.
         # Example: https://github.com/webstudio-is/webstudio/blob/main/packages/cli/templates/ssg/app/route-templates/html/%2BHead.tsx#L70-L71
-        # A basePath constant is missing entirely.
         # https://github.com/webstudio-is/webstudio/blob/main/fixtures/ssg/app/constants.mjs
         run: |
           git apply .patches/constants.mjs.patch
